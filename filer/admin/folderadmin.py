@@ -61,6 +61,17 @@ class FolderAdmin(PrimitivePermissionAwareModelAdmin):
     actions = ['move_to_clipboard', 'files_set_public', 'files_set_private',
                'delete_files_or_folders', 'move_files_and_folders',
                'copy_files_and_folders', 'resize_images', 'rename_files']
+    change_list_template = 'admin/filer/folder/directory_listing.html'
+
+    class Meta:
+        ## so, we've currently got this thing where filer has these
+        ## virtual models that help it filter for stuff, which is a cool
+        ## idea but doesn't easily jibe with Django's model admin
+        ## concept .. on the upside as long as the class signatures are
+        ## all fairly similar and we toggle between the appropriate model
+        ## on the fly, we should be able to fool django.. it's so trusting!
+        ## Probably do-so on the change-list itself!
+        model = FolderRoot
 
     def get_form(self, request, obj=None, **kwargs):
         """
@@ -106,6 +117,8 @@ class FolderAdmin(PrimitivePermissionAwareModelAdmin):
         """
         Overrides the default to be able to forward to the directory listing
         instead of the default change_list_view
+
+        I bet we can axe this once we have a proper ChangeList installed
         """
         r = super(FolderAdmin, self).response_change(request, obj)
         ## Code borrowed from django ModelAdmin to determine changelist on the fly
@@ -217,9 +230,38 @@ class FolderAdmin(PrimitivePermissionAwareModelAdmin):
         url_patterns.extend(urls)
         return url_patterns
 
+    def get_changelist(self, request, **kwargs):
+        from filer.admin.views import FolderChangeList
+        return FolderChangeList
+        
+
+                'folder': folder,
+                'clipboard_files': File.objects.filter(
+                    in_clipboards__clipboarditem__clipboard__user=request.user
+                    ).distinct(),
+                'paginator': paginator,
+                'paginated_items': paginated_items,
+                'permissions': permissions,
+                'permstest': userperms_for_request(folder, request),
+                'current_url': request.path,
+                'search_string': ' '.join(search_terms),
+                'q': urlquote(q),
+                'show_result_count': show_result_count,
+                'limit_search_to_folder': limit_search_to_folder,
+                'select_folder': selectfolder_status(request),
+
     # custom views
     def directory_listing(self, request, folder_id=None, viewtype=None):
+        return self.changelist_view(request)
+
+        ## NOOOO
+
+        ##viewtype is some kinda forced filters...
+        ##folder_id is really just the only query it supports..
+
         clipboard = tools.get_user_clipboard(request.user)
+
+        ## SB: all this custom filter and nav shit
         if viewtype == 'images_with_missing_data':
             folder = ImagesWithMissingData()
         elif viewtype == 'unfiled_images':
@@ -241,6 +283,8 @@ class FolderAdmin(PrimitivePermissionAwareModelAdmin):
             folder = get_object_or_404(Folder, id=folder_id)
         request.session['filer_last_folder_id'] = folder_id
 
+        ## SB: i think older ver of django modified.. to handle actions..
+
         # Check actions to see if any are available on this changelist
         actions = self.get_actions(request)
 
@@ -251,6 +295,11 @@ class FolderAdmin(PrimitivePermissionAwareModelAdmin):
                 list_display.remove('action_checkbox')
             except ValueError:
                 pass
+
+
+        ## Changelist would normally in here.. .. even more custom filtering and
+        ## query shit... nonstandard
+
 
         # search
         q = request.GET.get('q', None)
@@ -308,6 +357,11 @@ class FolderAdmin(PrimitivePermissionAwareModelAdmin):
         items = folder_children + folder_files
         paginator = Paginator(items, FILER_PAGINATE_BY)
 
+        ## END CUSTOM OVERRIDE USING PAGINATOR..
+
+
+        ## custom clippy again
+
         # Are we moving to clipboard?
         if request.method == 'POST' and '_save' not in request.POST:
             for f in folder_files:
@@ -318,7 +372,10 @@ class FolderAdmin(PrimitivePermissionAwareModelAdmin):
                         return HttpResponseRedirect(request.get_full_path())
                     else:
                         raise PermissionDenied
+        ## end custom clippy
 
+
+        ## more old Django stuff hacked out..
         selected = request.POST.getlist(helpers.ACTION_CHECKBOX_NAME)
         # Actions with no confirmation
         if (actions and request.method == 'POST' and
@@ -351,6 +408,11 @@ class FolderAdmin(PrimitivePermissionAwareModelAdmin):
         selection_note_all = ungettext('%(total_count)s selected',
             'All %(total_count)s selected', paginator.count)
 
+        ##END hacked out django stuff..
+
+
+        ## our, semi, custom response
+
         # If page request (9999) is out of range, deliver last page of results.
         try:
             paginated_items = paginator.page(request.GET.get('page', 1))
@@ -358,6 +420,8 @@ class FolderAdmin(PrimitivePermissionAwareModelAdmin):
             paginated_items = paginator.page(1)
         except EmptyPage:
             paginated_items = paginator.page(paginator.num_pages)
+
+
         return render_to_response(
             'admin/filer/folder/directory_listing.html',
             {
@@ -370,22 +434,22 @@ class FolderAdmin(PrimitivePermissionAwareModelAdmin):
                 'permissions': permissions,
                 'permstest': userperms_for_request(folder, request),
                 'current_url': request.path,
-                'title': u'Directory listing for %s' % folder.name,
+                #'title': u'Directory listing for %s' % folder.name,
                 'search_string': ' '.join(search_terms),
                 'q': urlquote(q),
                 'show_result_count': show_result_count,
                 'limit_search_to_folder': limit_search_to_folder,
-                'is_popup': popup_status(request),
+                #'is_popup': popup_status(request),
                 'select_folder': selectfolder_status(request),
                 # needed in the admin/base.html template for logout links
                 'root_path': reverse('admin:index'),
-                'action_form': action_form,
-                'actions_on_top': self.actions_on_top,
-                'actions_on_bottom': self.actions_on_bottom,
-                'actions_selection_counter': self.actions_selection_counter,
-                'selection_note': _('0 of %(cnt)s selected') % {'cnt': len(paginated_items.object_list)},
-                'selection_note_all': selection_note_all % {'total_count': paginator.count},
-                'media': self.media,
+                #'action_form': action_form,
+                #'actions_on_top': self.actions_on_top,
+                #'actions_on_bottom': self.actions_on_bottom,
+                #'actions_selection_counter': self.actions_selection_counter,
+                #'selection_note': _('0 of %(cnt)s selected') % {'cnt': len(paginated_items.object_list)},
+                #'selection_note_all': selection_note_all % {'total_count': paginator.count},
+                #'media': self.media,
                 'enable_permissions': settings.FILER_ENABLE_PERMISSIONS
         }, context_instance=RequestContext(request))
 
