@@ -1,18 +1,14 @@
 # -*- coding: utf-8 -*-
-from distutils.version import LooseVersion
-import django
 import os
 
 gettext = lambda s: s
 
 urlpatterns = []
-DJANGO_1_3 = LooseVersion(django.get_version()) < LooseVersion('1.4')
 
 def configure(**extra):
     from django.conf import settings
     os.environ['DJANGO_SETTINGS_MODULE'] = 'filer.test_utils.cli'
     defaults = dict(
-        CACHE_BACKEND='locmem:///',
         DEBUG=True,
         TEMPLATE_DEBUG=True,
         DATABASE_SUPPORTS_TRANSACTIONS=True,
@@ -24,7 +20,6 @@ def configure(**extra):
         STATIC_ROOT='/static/',
         MEDIA_URL='/media/',
         STATIC_URL='/static/',
-        ADMIN_MEDIA_PREFIX='/static/admin/',
         EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
         SECRET_KEY='key',
         TEMPLATE_LOADERS=(
