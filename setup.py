@@ -30,7 +30,6 @@ setup(
         'django-mptt>=0.5.1,<=0.6',
         'django_polymorphic>=0.2',
     ),
-    include_package_data=True,
     zip_safe=False,
     classifiers = [
         'Development Status :: 4 - Beta',
